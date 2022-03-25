@@ -1,49 +1,36 @@
-format compact; clc; clear; close all
+format compact; clc; clear; close all;
 %% Genetic Algorithm
-global dx x_l x_u res elitist_prob initial_popu selection_prob mutation_prob
-x_l = -5; % lower boundry
-x_u = 15; % upper boundry
-res = 10; % bit resolution of coding (2^res = length of chromosome)
-dx = (x_u-x_l)/(2^res-1)
-
-elitist_prob = 0.5
-initial_popu = 20
-mutation_prob = 0.5
+global dx x_l x_u res elitist_prob initial_popu selection_prob mutation_prob debug
+x_l = [-5,0,0]; % lower boundry
+x_u = [15,3,2]; % x_u - upper boundry
+res = length(x_l)*3; % bit resolution of coding (2^res = length of chromosome)
+dx = min(x_u-x_l)/(2^(res/length(x_l))-1)
+elitist_prob = 0.2
+initial_popu = 40
+mutation_prob = 0.2
 selection_prob = 1 - elitist_prob
+ debug=10;
 
-max_iterations = 100
-min_iterations = 20
+max_iterations = 1000
+min_iterations = 100
 
 %% Goal function
-gf1 = @(x) x.^2 - 10.*x + 4 - 20*sin(x);
-gf1_x_min = 7.610;
-
-figure(1)
-plot (x_l:(x_u-x_l)/(2^res-1):x_u,gf1(x_l:(x_u-x_l)/(2^res-1):x_u),'k-')
-
-%hold on
-
+gf1 = @(x) x(:,1).^2 - 10.*x(:,1) +  20.*x(:,1).*sin(x(:,1)) + 4 - 20*sin(x(:,2)) + 10*x(:,3);
+gf1_min = -224.9291
+PlotFunction(gf1)
 population = GenerateInitialPopulation();
 i=0;
-x_min = [x_u x_l];
+y_min = [gf1(x_u) gf1(x_l)];
 
-dx_min = max(x_min)-min(x_min);
-x_min_hist = [x_min];
-while (i<max_iterations && dx<=dx_min)
+dy_min = max(y_min)-min(y_min);
+y_min_hist = [y_min];
+while (i<max_iterations && dx<=dy_min)
     i=i+1;;;;;;;;;;;
      
-      
-    %x = DeCode(population);
-    %y = gf1(x); %FittnesFunction(population,gf1) 
-    %plot (x,y,'bx')
+    PlotFunction(gf1)
     
-    plot (x_l:(x_u-x_l)/(2^res-1):x_u,gf1(x_l:(x_u-x_l)/(2^res-1):x_u),'k-','DisplayName','f(x)')
-    xlabel('x')
-    ylabel('f(x)')
-    title(sprintf('P_{mutation}=%g, P_{elitist}=%g, P_{select}=%g, N_{population}=%g, i_{max}=%g, i_{min}=%g, \\Delta=%g',mutation_prob,elitist_prob,selection_prob,initial_popu,max_iterations,min_iterations,dx))
-    hold on
     PlotPopulation(population,gf1,'bx')
-
+    
     survivors = ElitistSelection(population,gf1);;;;;;;;;;
     PlotPopulation(survivors,gf1,'bo')
     
@@ -59,55 +46,73 @@ while (i<max_iterations && dx<=dx_min)
     PlotPopulation(mutants,gf1,'mp')
     population = [survivors mutants];
     %population = mutants;
-    hold off
-    if (length(x_min) < min_iterations)
-        x_min = [x_min GetMinimum(population,gf1)];
+    
+    [~,~,y_min_i] = GetMinimum(population,gf1);
+    if (length(y_min) < min_iterations)
+        y_min = [y_min y_min_i];
     else
-        x_min = [x_min(2:end) GetMinimum(population,gf1)];
+        y_min = [y_min(2:end) y_min_i];
     end
-    dx_min = max(x_min)-min(x_min);;;;;;;;;
-    x_min_hist = [x_min_hist x_min(end)];
-    legend
-    pause(0.01)
-    input('x')
+    dy_min = max(y_min)-min(y_min);;;;;;;;;
+    y_min_hist = [y_min_hist y_min(end)];
+    
 end
-
-hold on
- x = GetMinimum(population,gf1)
- y = gf1(x); %FittnesFunction(population,gf1)
- plot (x,y,'ro','DisplayName','MINIMUM')
-hold off
+i
+[x,c,y] = GetMinimum(population,gf1)
+if (debug>0)
+    hold on
+    plot (c,y,'ro','DisplayName','MINIMUM')
+    hold off
+end
 
 figure(2)
 hold on
 %plot(gf1(x_min_hist(3:end)),'DisplayName','MINIMUM')
-plot(x_min_hist(3:end),'DisplayName','MINIMUM')
+plot(y_min_hist(3:end),'DisplayName','MINIMUM')
 xlabel('iteration')
-%ylabel('f(x_{min})')
-ylabel('x_{min}')
-title(sprintf('P_{mutation}=%g, P_{elitist}=%g, P_{select}=%g, N_{population}=%g, i_{max}=%g, i_{min}=%g, \\Delta=%g',mutation_prob,elitist_prob,selection_prob,initial_popu,max_iterations,min_iterations,dx))
-%plot(gf1(gf1_x_min).*ones(i-1),'r--')
-plot(gf1_x_min.*ones(i-1),'r--')
+ylabel('f(x_{min})')
 
-function PlotPopulation(population,gf,style)
-    x = DeCode(population);
-    y = gf(x);
-    plot (x,y,style,'DisplayName',inputname(1)); 
+title(sprintf('P_{mutation}=%g, P_{elitist}=%g, P_{select}=%g, N_{population}=%g, i_{max}=%g, i_{min}=%g, \\Delta=%g',mutation_prob,elitist_prob,selection_prob,initial_popu,max_iterations,min_iterations,dx))
+plot(gf1_min.*ones(i-1),'r--')
+
+function PlotFunction(gf)
+    global dx res x_l debug elitist_prob initial_popu mutation_prob selection_prob max_iterations min_iterations
+    if (debug>0)
+        figure(1)
+        title(sprintf('P_{mutation}=%g, P_{elitist}=%g, P_{select}=%g, N_{population}=%g, i_{max}=%g, i_{min}=%g, \\Delta=%g',mutation_prob,elitist_prob,selection_prob,initial_popu,max_iterations,min_iterations,dx))
+        hold on
+        c = 0:1:(2^res-1);
+        y = gf(DeCode(c));
+        plot (c,y,'k-','DisplayName','f(x)')
+        xlabel('coded x')
+        ylabel('f(x)')
+        legend
+    end
 end
 
-function x_min = GetMinimum(p,gf)
-    [~,index] = max(FittnesFunction(p,gf));
-    x_min = DeCode(p(index));
+function PlotPopulation(population,gf,style)
+    global debug
+    if (debug>0)
+        hold on
+        x = population;
+        y = gf(DeCode(x));
+        plot (x,y,style,'DisplayName',inputname(1)); 
+        hold off
+    end
+end
+
+function [x_min,c,y] = GetMinimum(p,gf)
+    [y,index] = min(-FittnesFunction(p,gf));
+    c = p(index);
+    x_min = DeCode(c);
 end
 
 function mutants = Mutate(p)
     global res mutation_prob
     % pattern = randi(2.^res,1,length(p))-1; % mutation_prob = 0.5
     pattern = sum((rand(1,res) < mutation_prob) .* 2.^(res-1:-1:0));
-
     mutants = bitxor(p,pattern);
 end
-
 
 function new_borns = OnePointCrossover(parents)
     global res
@@ -120,7 +125,6 @@ function new_borns = OnePointCrossover(parents)
     
 end
 
- 
 function parents = ParentsSelection(p,gf)
     global selection_prob
     n = floor(selection_prob*length(p)); % number of pairs of chrom. to select
@@ -152,8 +156,8 @@ function p = ElitistSelection(p,gf)
 end
 
 function p = GenerateInitialPopulation()
-global res initial_popu
-p = randi(2.^res-1,1,initial_popu);
+    global res initial_popu
+    p = randi(2.^res-1,1,initial_popu);
 end
 
 %% Fittness Function
@@ -167,19 +171,20 @@ end
 % x - value from range x_l : x_u
 function c = Code(x)
     global x_l x_u res
-    if(x<=x_l)
-        c = 0;
-    elseif (x>=x_u)
-        c = 2.^res-1; 
-    else
-        c = floor((x-x_l)./(x_u-x_l)*(2.^res-1));
-    end
+    x_norm = (x-x_l)./(x_u-x_l);
+    x_int = floor(x_norm*(2.^(res/length(x_l))-1));
+    weights = 2.^(0:length(x)*(res/length(x_l))-1);
+    c = sum(x_int(:)*weights)
 end
-
 
 %% Function returning decoded version of chromosome
 % c - chromosome
 function x = DeCode(c)
     global x_l x_u res
-    x = x_l + (c./(2.^res-1)).*(x_u-x_l);
+    xyz_bin = de2bi(c,res);
+    x_bin = reshape(xyz_bin',res/length(x_l),length(x_l)*length(c));
+    x_int=bi2de(x_bin');
+    xyz_int = reshape(x_int,length(x_l),length(c))';
+    x_norm = xyz_int/(2.^(res/length(x_l))-1);
+    x = (x_l + x_norm.*(x_u-x_l));
 end
